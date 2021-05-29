@@ -5,6 +5,7 @@
 #include <memory>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 
 EXPORT void zzz_gdloader_stub() {}
 
@@ -15,19 +16,15 @@ namespace GDLoader {
     Mod::Mod(const std::string& name) {
         m_id = g_idCounter++;
         m_name = name;
+        m_module = nullptr;
     }
 
-    void Mod::addHook(void* addr, void* hook, void** orig) {
+    MH_STATUS Mod::addHook(void* addr, void* hook, void** orig) {
         auto status = MH_CreateHookEx(m_id, addr, hook, orig);
         if (status == MH_OK) {
             m_hooks.push_back(addr);
         }
-    }
-
-    void* Mod::addHook(void* addr, void* hook) {
-        void* orig;
-        addHook(addr, hook, &orig);
-        return orig;
+        return status;
     }
 
     void Mod::enableHook(void* addr) {
@@ -43,7 +40,18 @@ namespace GDLoader {
 
     void Mod::disableHook(void* addr) {
         MH_DisableHookEx(m_id, addr);
-        // std::remove_if()
+        m_hooks.erase(std::remove(m_hooks.begin(), m_hooks.end(), addr)), m_hooks.end();
+    }
+
+    void Mod::unload() {
+        for (const auto& addr : m_hooks) {
+            MH_RemoveHookEx(m_id, addr);
+        }
+        const auto it = std::find_if(g_mods.begin(), g_mods.end(), [&](const auto& mod) { return mod->getID() == m_id; });
+        if (it != g_mods.end())
+            g_mods.erase(it);
+        if (m_module != nullptr)
+            FreeLibrary(reinterpret_cast<HMODULE>(m_module));
     }
 
     std::shared_ptr<Mod> createMod(const std::string& name) {
