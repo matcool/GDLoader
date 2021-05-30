@@ -19,6 +19,7 @@ std::string& lower_str(std::string& str) {
 namespace GDLoader {
     std::vector<std::shared_ptr<Mod>> g_mods;
     unsigned int g_idCounter = 1; // 0 is reserved for GDLoader itself
+    std::unordered_map<void*, void*> g_hookTramps; // used for chaining hooks :D
 
     Mod::Mod(const std::string& name) {
         m_id = g_idCounter++;
@@ -27,37 +28,46 @@ namespace GDLoader {
     }
 
     MH_STATUS Mod::addHook(void* addr, void* hook, void** orig) {
-        auto status = MH_CreateHookEx(m_id, addr, hook, orig);
+        if (m_hooks.find(addr) != m_hooks.end()) {
+            return MH_ERROR_ALREADY_CREATED;
+        }
+        auto tramp = g_hookTramps.find(addr);
+        auto actual = addr;
+        if (tramp != g_hookTramps.end()) {
+            addr = tramp->second;
+        }
+        auto status = MH_CreateHook(addr, hook, orig);
         if (status == MH_OK) {
-            m_hooks.push_back(addr);
+            m_hooks[actual] = addr;
+            g_hookTramps[actual] = *orig;
         }
         return status;
     }
 
     void Mod::enableHook(void* addr) {
-        MH_EnableHookEx(m_id, addr);
+        MH_EnableHook(m_hooks.at(addr));
     }
 
     void Mod::enableAllHooks() {
-        for (const auto& addr : m_hooks) {
-            MH_QueueEnableHookEx(m_id, addr);
+        for (const auto& [_, addr] : m_hooks) {
+            MH_QueueEnableHook(addr);
         }
         MH_ApplyQueued();
     }
 
     void Mod::disableHook(void* addr) {
-        MH_DisableHookEx(m_id, addr);
-        m_hooks.erase(std::remove(m_hooks.begin(), m_hooks.end(), addr)), m_hooks.end();
+        MH_DisableHook(addr);
+        m_hooks.erase(m_hooks.find(addr));
     }
 
-    void Mod::unload() {
-        for (const auto& addr : m_hooks) {
-            MH_RemoveHookEx(m_id, addr);
+    void Mod::unload(bool free) {
+        for (const auto& [_, addr] : m_hooks) {
+            MH_RemoveHook(addr);
         }
         const auto it = std::find_if(g_mods.begin(), g_mods.end(), [&](const auto& mod) { return mod->getID() == m_id; });
         if (it != g_mods.end())
             g_mods.erase(it);
-        if (m_module != nullptr)
+        if (free && m_module != nullptr)
             FreeLibrary(reinterpret_cast<HMODULE>(m_module));
     }
 
@@ -119,12 +129,17 @@ namespace GDLoader {
             }
         }
         const auto addr = reinterpret_cast<char*>(GetModuleHandle(0)) + 0x18c080;
-        MH_CreateHookEx(0,
+        // create a mod instead of just calling minhook directly
+        // because what if some mod uses loadinglayer::init you never know
+        auto mod = createMod("GDLoader");
+        mod->addHook(
             addr,
             LoadingLayer_init_H,
-            reinterpret_cast<void**>(&LoadingLayer_init)
+            &LoadingLayer_init
         );
-        MH_EnableHookEx(0, addr);
+        // maybe disable the hook after its called once
+        // although disabling hooks is broken rn lol
+        mod->enableAllHooks();
     }
 }
 

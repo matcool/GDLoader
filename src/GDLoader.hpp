@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unordered_map>
 
 #define EXPORT __declspec(dllexport)
 
@@ -12,7 +13,7 @@ namespace GDLoader {
     protected:
         unsigned int m_id;
         std::string m_name;
-        std::vector<void*> m_hooks;
+        std::unordered_map<void*, void*> m_hooks;
         void* m_module; // HMODULE
     public:
         Mod(const std::string& name);
@@ -50,7 +51,7 @@ namespace GDLoader {
         // provided, unloads the module as well.
         // Note that this is extremely unsafe and
         // should be used with caution
-        EXPORT void unload();
+        EXPORT void unload(bool free = false);
     };
     // Creates a mod and stores it internally in GDLoader
     EXPORT std::shared_ptr<Mod> createMod(const std::string& name);
