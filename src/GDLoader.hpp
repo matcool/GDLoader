@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <memory>
 #include <unordered_map>
 
 #ifdef GDLOADER_EXPORT
@@ -64,7 +63,9 @@ namespace GDLoader {
         // should be used with caution
         GDLOADER_DLL void unload(bool free = false);
     };
-    
+
+    using ModPtr = Mod*;
+
     // Creates a mod and stores it internally in GDLoader
-    GDLOADER_DLL std::shared_ptr<Mod> createMod(const std::string& name);
+    GDLOADER_DLL ModPtr createMod(const std::string& name);
 }

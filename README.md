@@ -5,12 +5,10 @@ A mod loader that hopefully resolves hook conflicts by chaining hooks.
 This works by having a single instance of the loader, instead of each mod statically linking minhook and causing a big mess! D:
 
 ## TODO
-- add a mutex
 - disabling hooks properly
 - improve settings.txt
 - maybe add a priority system
 - add some way for mods to interact with other mods
-- maybe, just maybe, switch to a different hooking method entirely (trap hooking)
 
 ## Example
 

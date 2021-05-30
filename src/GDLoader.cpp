@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <unordered_set>
 #include <cctype>
+#include <mutex>
 
 __declspec(dllexport) void zzz_gdloader_stub() {}
 
@@ -17,9 +18,10 @@ std::string& lower_str(std::string& str) {
 }
 
 namespace GDLoader {
-    std::vector<std::shared_ptr<Mod>> g_mods;
+    std::vector<ModPtr> g_mods;
     unsigned int g_idCounter = 1; // 0 is reserved for GDLoader itself
     std::unordered_map<void*, void*> g_hookTramps; // used for chaining hooks :D
+    std::mutex g_hookLock;
 
     Mod::Mod(const std::string& name) {
         m_id = g_idCounter++;
@@ -31,6 +33,7 @@ namespace GDLoader {
         if (m_hooks.find(addr) != m_hooks.end()) {
             return MH_ERROR_ALREADY_CREATED;
         }
+        g_hookLock.lock();
         auto tramp = g_hookTramps.find(addr);
         auto actual = addr;
         if (tramp != g_hookTramps.end()) {
@@ -41,39 +44,51 @@ namespace GDLoader {
             m_hooks[actual] = addr;
             g_hookTramps[actual] = *orig;
         }
+        g_hookLock.unlock();
         return status;
     }
 
     void Mod::enableHook(void* addr) {
+        g_hookLock.lock();
         MH_EnableHook(m_hooks.at(addr));
+        g_hookLock.unlock();
     }
 
     void Mod::enableAllHooks() {
+        g_hookLock.lock();
         for (const auto& [_, addr] : m_hooks) {
             MH_QueueEnableHook(addr);
         }
         MH_ApplyQueued();
+        g_hookLock.unlock();
     }
 
     void Mod::disableHook(void* addr) {
+        g_hookLock.lock();
         MH_DisableHook(addr);
         m_hooks.erase(m_hooks.find(addr));
+        g_hookLock.unlock();
     }
 
     void Mod::unload(bool free) {
+        g_hookLock.lock();
         for (const auto& [_, addr] : m_hooks) {
             MH_RemoveHook(addr);
         }
         const auto it = std::find_if(g_mods.begin(), g_mods.end(), [&](const auto& mod) { return mod->getID() == m_id; });
         if (it != g_mods.end())
             g_mods.erase(it);
+        g_hookLock.unlock();
         if (free && m_module != nullptr)
             FreeLibrary(reinterpret_cast<HMODULE>(m_module));
+        delete this;
     }
 
-    std::shared_ptr<Mod> createMod(const std::string& name) {
-        auto mod = std::make_shared<Mod>(name);
+    ModPtr createMod(const std::string& name) {
+        auto mod = new Mod(name);
+        g_hookLock.lock();
         g_mods.push_back(mod);
+        g_hookLock.unlock();
         return mod;
     }
 
