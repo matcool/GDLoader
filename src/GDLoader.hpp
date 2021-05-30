@@ -4,7 +4,11 @@
 #include <memory>
 #include <unordered_map>
 
-#define EXPORT __declspec(dllexport)
+#ifdef GDLOADER_EXPORT
+#define GDLOADER_DLL __declspec(dllexport)
+#else
+#define GDLOADER_DLL __declspec(dllimport)
+#endif
 
 enum MH_STATUS;
 
@@ -27,7 +31,7 @@ namespace GDLoader {
         //   addr - Target address
         //   hook - Detour function
         //   orig - Pointer to the trampoline function
-        EXPORT MH_STATUS addHook(void* addr, void* hook, void** orig);
+        GDLOADER_DLL MH_STATUS addHook(void* addr, void* hook, void** orig);
 
         template <typename Addr, typename Hook, typename Orig>
         auto addHook(Addr a, Hook b, Orig c) {
@@ -41,18 +45,26 @@ namespace GDLoader {
         // }
 
         // Enables a hook by its target address
-        EXPORT void enableHook(void* addr);
+        GDLOADER_DLL void enableHook(void* addr);
+
         // Enables all created hooks so far
-        EXPORT void enableAllHooks();
+        GDLOADER_DLL void enableAllHooks();
+
         // Disables a hook by its target address
-        EXPORT void disableHook(void* addr);
+        //
+        // Note that this is broken atm and will
+        // end up disabling every hook of the target
+        // function instead of just this mod's
+        GDLOADER_DLL void disableHook(void* addr);
 
         // Removes all the hooks in this mod, and if
         // provided, unloads the module as well.
+        //
         // Note that this is extremely unsafe and
         // should be used with caution
-        EXPORT void unload(bool free = false);
+        GDLOADER_DLL void unload(bool free = false);
     };
+    
     // Creates a mod and stores it internally in GDLoader
-    EXPORT std::shared_ptr<Mod> createMod(const std::string& name);
+    GDLOADER_DLL std::shared_ptr<Mod> createMod(const std::string& name);
 }
