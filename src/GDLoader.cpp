@@ -81,7 +81,6 @@ namespace GDLoader {
         g_hookLock.unlock();
         if (free && m_module != nullptr)
             FreeLibrary(reinterpret_cast<HMODULE>(m_module));
-        delete this;
     }
 
     ModPtr createMod(const std::string& name) {
